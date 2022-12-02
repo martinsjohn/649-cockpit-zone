@@ -80,7 +80,7 @@ int main() {
 
   struct sockaddr_in servaddr = { 0 };
 
-  if((serialport = serialOpen("/dev/ttyS0", 115200)) < 0){
+  if((serialport = serialOpen("/dev/ttyS0", 9600)) < 0){
     perror("failed to open serial device");
     exit(EXIT_FAILURE);
   }
@@ -103,10 +103,10 @@ int main() {
   //options.c_cflag &= ~CSIZE;
   //options.c_cflag |= CS7;
   //options.c_cflag |= PARENB;
-  if(tcsetattr (serialport,TCSANOW, &options) >= 0){
-    printf("UART Configured successfully");
-  }
-
+  // if(tcsetattr (serialport,TCSADRAIN, &options) >= 0){
+  //   printf("UART Configured successfully");
+  // }
+// 
   servaddr.sin_family = AF_INET;
   servaddr.sin_port = htons(R_PORT);
   servaddr.sin_addr.s_addr = inet_addr(LOCAL_HOST);
@@ -135,19 +135,21 @@ int main() {
     //char msg[20] = "Howdy";
     
     
-    uint8_t buf[75];
+    char buf[75];
     //sprintf(buf, "Wheel: %5.5i | Throt: %5.5i | Brk: %5.5i | Blnk: %5.5i \n",
     //  state.lX, state.lY, state.lRz, blinks);
-    sprintf(buf, "QWERTYUIOPASDFGHJKL");
-
-    for(int i = 0; i < strlen(buf); i++){
-        serialPutchar(serialport, buf[i]);
-    }
+    sprintf(buf, "QWERTYUIOPASDFGHJKL\r\n");
+    serialPuts(serialport, buf);
+    //for(int i = 0; i < strlen(buf); i++){
+    //  serialPutchar(serialport, buf[i]);
+    //}
+    // write(serialport, buf, 20);
+    // flush()
     printf(buf);
     //serialPuts(serialport, buf);
     //serialPrintf(serialport, buf);
     //delay_sec(0.5);
-    serialFlush(serialport);
+    // serialFlush(serialport);
 
   }
 

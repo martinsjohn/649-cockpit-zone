@@ -28,7 +28,7 @@
 /** **/
 
 
-#define TX_INTERVAL_MS 50
+#define TX_INTERVAL_MS 200
 #define STATE_SIZE sizeof(DIJOYSTATE2_t)
 
 //Thread IDs
@@ -45,23 +45,50 @@ pthread_mutex_t brake_lock;
 pthread_mutex_t blink_lock;
 
 //Global values for parts
-uint8_t wheelNum;
-uint8_t brakeNum;
-uint8_t throttleNum;
-uint8_t blinkNum;
+// uint8_t wheelNum;
+// uint8_t brakeNum;
+// uint8_t throttleNum;
+// uint8_t blinkNum;
+
+uint8_t wheelNum = 'A';
+uint8_t throttleNum = 'B';
+uint8_t brakeNum = 'C';
+uint8_t blinkNum = 'D';
 
 //I2C
 int i2cPort;
 
 
+
+
 void *send_info(void *arg){
   while(1){
-    //pthread_mutex_lock(&wheel_lock);
+    //psthread_mutex_lock(&wheel_lock);
     printf("Sending Wheel: %d \n", wheelNum);
-    wiringPiI2CWrite(i2cPort, wheelNum);
-    wiringPiI2CWrite(i2cPort, throttleNum);
-    wiringPiI2CWrite(i2cPort, brakeNum);
-    wiringPiI2CWrite(i2cPort, blinkNum);
+    // wiringPiI2CWrite(i2cPort, (uint8_t)wheelNum);
+    // //usleep(50);
+    // wiringPiI2CWrite(i2cPort, (uint8_t)throttleNum);
+    // //usleep(50);
+    // wiringPiI2CWrite(i2cPort, (uint8_t)brakeNum);
+    // //usleep(50);
+    // wiringPiI2CWrite(i2cPort, (uint8_t)blinkNum);
+    int e = wiringPiI2CWrite(i2cPort, (uint8_t)wheelNum);
+    if (e < 0) {
+      printf("error first byte\n");
+    }
+    e = wiringPiI2CWrite(i2cPort, (uint8_t)throttleNum);
+     if (e < 0) {
+      printf("error second byte\n");
+    }
+    e = wiringPiI2CWrite(i2cPort, (uint8_t)brakeNum);
+     if (e < 0) {
+      printf("error third byte\n");
+    }
+    e = wiringPiI2CWrite(i2cPort, (uint8_t)blinkNum);
+    if (e < 0) {
+      printf("error fourths byte\n");
+    }
+    usleep(TX_INTERVAL_MS * 2000);
     //pthread_mutex_unlock(&wheel_lock);
   }
 }
@@ -184,7 +211,7 @@ int main() {
 
   //pthread_create(&send_tid, NULL, send_force, NULL);
 
-  //pthread_create(&send_wheel_tid, NULL, send_info, NULL);
+  // pthread_create(&send_wheel_tid, NULL, send_info, NULL);
   //pthread_create(&send_throttle_tid, NULL, send_throttle, NULL);
   //pthread_create(&send_brake_tid, NULL, send_brake, NULL);
   //pthread_create(&send_blink_tid, NULL, send_blink, NULL);
@@ -256,17 +283,17 @@ int main() {
     //for(int i = 0; i < strlen((char*)dataAll); i ++){
     //  wiringPiI2CWrite(i2cPort,dataAll[i]);
     //}
-    uint8_t sendData;
+    uint8_t sendData = 0;
     sendData |= blinkNum;
     sendData = sendData << 6;
     sendData |= (throttleNum & 0x3F);
     //sendData |= blinkNum;
     
 
-    wiringPiI2CWrite(i2cPort, sendData);
-    //wiringPiI2CWrite(i2cPort, throttleNum);
-    //wiringPiI2CWrite(i2cPort, brakeNum);
-    //wiringPiI2CWrite(i2cPort, blinkNum);
+    wiringPiI2CWrite(i2cPort, wheelNum);
+    wiringPiI2CWrite(i2cPort, throttleNum);
+    wiringPiI2CWrite(i2cPort, brakeNum);
+    wiringPiI2CWrite(i2cPort, blinkNum);
 
   }
 

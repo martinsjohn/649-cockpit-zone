@@ -12,6 +12,7 @@
 
 #include <wiringPi.h>
 #include <wiringSerial.h>
+#include <wiringPiI2C.h>
 #include <termios.h>
 
 #include "state.h"
@@ -27,8 +28,11 @@
 /** **/
 
 
-#define TX_INTERVAL_MS 1000
+#define TX_INTERVAL_MS 50
 #define STATE_SIZE sizeof(DIJOYSTATE2_t)
+
+
+
 
 void delay_sec(int number_of_seconds)
 {
@@ -67,21 +71,37 @@ void *send_force(void *arg) {
   }
 }
 
+//void sendDataI2C(void *arg)
+
 int main() {
   //Socket info
   int sockfd;
   char buffer[STATE_SIZE + 1];
 
   //UART info
-  int serialport;
-  char uartData;
+  //int serialport;
+  //char uartData;
+
+  //I2C info
+  int stmI2CAddr = 0;
+  int i2cPort;
+  uint8_t wheelNum;
+  uint8_t brakeNum;
+  uint8_t throttleNum;
 
   struct termios options;
 
   struct sockaddr_in servaddr = { 0 };
 
+  /*
   if((serialport = serialOpen("/dev/ttyS0", 9600)) < 0){
     perror("failed to open serial device");
+    exit(EXIT_FAILURE);
+  }
+  */
+
+  if((i2cPort = wiringPiI2CSetup(stmI2CAddr)) < 0){
+    perror("failed to openi2c port");
     exit(EXIT_FAILURE);
   }
 
@@ -98,8 +118,8 @@ int main() {
   // Should try configuring STM Uart reciver before messing
   // with these much more confusing settings
   //uart advanced settings
-  tcgetattr (serialport, &options);
-  cfmakeraw(&options);
+  //tcgetattr (serialport, &options);
+  //cfmakeraw(&options);
   //options.c_cflag &= ~CSIZE;
   //options.c_cflag |= CS7;
   //options.c_cflag |= PARENB;
@@ -122,6 +142,8 @@ int main() {
   pthread_t send_tid;
   //pthread_create(&send_tid, NULL, send_force, NULL);
 
+
+
   while(1) {
     //printf("Wait recv\n");
     int n, len;
@@ -135,21 +157,51 @@ int main() {
     //char msg[20] = "Howdy";
     
     
-    char buf[75];
+    //char buf[75];
     //sprintf(buf, "Wheel: %5.5i | Throt: %5.5i | Brk: %5.5i | Blnk: %5.5i \n",
     //  state.lX, state.lY, state.lRz, blinks);
-    sprintf(buf, "QWERTYUIOPASDFGHJKL\r\n");
-    serialPuts(serialport, buf);
+    //sprintf(buf, "ZZERTYUIOPASDFGHJKL\r\n");
+    //sprintf(buf, "Wheel: %d", state.lX);
+    //serialPuts(serialport, buf);
     //for(int i = 0; i < strlen(buf); i++){
     //  serialPutchar(serialport, buf[i]);
     //}
     // write(serialport, buf, 20);
     // flush()
-    printf(buf);
+    //printf(buf);
     //serialPuts(serialport, buf);
     //serialPrintf(serialport, buf);
     //delay_sec(0.5);
     // serialFlush(serialport);
+    uint8_t data[] = "Hello World\r\n";
+    wheelNum = (((int)state.lX / 656) + 75);
+    brakeNum = (((int)state.lY / (-656)) - 207);
+    throttleNum = (((int)state.lRz / (-656)) - 207);
+    //ALL DATA
+    
+    char dataAll[30];
+    sprintf(dataAll, "W:%d T:%d, Br:%d, Bl:%d \r\n", 
+      wheelNum, brakeNum, throttleNum, blinks);
+    
+    printf(dataAll);
+
+    //Data for just wheel
+    char dataWheel[1];
+    sprintf(dataWheel, "%d", wheelNum);
+
+
+    //I2C Sending
+    
+    //for(int i = 0; i < strlen((char*)dataAll); i ++){
+    //  wiringPiI2CWrite(i2cPort,dataAll[i]);
+    //}
+    
+    
+
+    wiringPiI2CWrite(i2cPort, wheelNum);
+    wiringPiI2CWrite(i2cPort, wheelNum);
+    wiringPiI2CWrite(i2cPort, wheelNum);
+    //wiringPiI2CWrite(i2cPort, wheelNum);
 
   }
 

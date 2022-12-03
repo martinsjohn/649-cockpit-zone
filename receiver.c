@@ -199,8 +199,8 @@ int main() {
     
 
     wiringPiI2CWrite(i2cPort, wheelNum);
-    wiringPiI2CWrite(i2cPort, wheelNum);
-    wiringPiI2CWrite(i2cPort, wheelNum);
+    //wiringPiI2CWrite(i2cPort, wheelNum);
+    //wiringPiI2CWrite(i2cPort, wheelNum);
     //wiringPiI2CWrite(i2cPort, wheelNum);
 
   }

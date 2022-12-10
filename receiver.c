@@ -28,7 +28,7 @@
 /** **/
 
 
-#define TX_INTERVAL_MS 200
+#define TX_INTERVAL_MS 30
 #define STATE_SIZE sizeof(DIJOYSTATE2_t)
 
 // Test values
@@ -54,10 +54,10 @@ enum motor {m0, m1, m2, m3, m4, m5, m6, m7, m8};
 #define MAX_THROTTLE  100
 #define THROTTLE_VAL1 30
 #define THROTTLE_VAL2 70
-#define BRAKE         0
-#define NO_BRAKE      1
+#define BRAKE         1
+#define NO_BRAKE      0
 
-int state = NORMAL;
+int testState = NORMAL;
 int test_num = 0;
 int cycle = 0;
 
@@ -239,12 +239,9 @@ int main() {
   DIJOYSTATE2_t state;
   char recvbuf[sizeof(DIJOYSTATE2_t) + 8]; //4-counter, 4-blinks
 
-  //pthread_create(&send_tid, NULL, send_force, NULL);
 
-  // pthread_create(&send_wheel_tid, NULL, send_info, NULL);
-  //pthread_create(&send_throttle_tid, NULL, send_throttle, NULL);
-  //pthread_create(&send_brake_tid, NULL, send_brake, NULL);
-  //pthread_create(&send_blink_tid, NULL, send_blink, NULL);
+  //Print Test State  
+  printf("Test State: %d \n", testState);
 
   while(1) {
     //printf("Wait recv\n");
@@ -254,8 +251,10 @@ int main() {
     uint32_t packet_ct = ((uint32_t*) recvbuf)[1];
     uint32_t blinks = ((uint32_t*) recvbuf)[0];
     memcpy(&state, recvbuf + 8, sizeof(state));
-    printf("Receive state (Pkt: %8X) :  Wheel: %d | Throttle: %d | Brake: %d\n",
-      packet_ct, state.lX, state.lY, state.lRz);
+    if(testState == 0){
+      printf("Receive state (Pkt: %8X) :  Wheel: %d | Throttle: %d | Brake: %d\n",
+        packet_ct, state.lX, state.lY, state.lRz);
+    }
     //char msg[20] = "Howdy";
     
     
@@ -278,7 +277,7 @@ int main() {
     
     //Modify wheelNum
     //pthread_mutex_lock(&wheel_lock);
-    wheelNum = (((int)state.lX / 656) + 75);
+    wheelNum = ((-(int)state.lX / 1500) + 75);
     //pthread_mutex_unlock(&wheel_lock);
     
     //Modify throttleNum
@@ -296,48 +295,38 @@ int main() {
     blinkNum = (uint8_t)blinks;
     //pthread_mutex_unlock(&blink_lock);
     
-    //ALL DATA
-    char dataAll[30];
-    sprintf(dataAll, "W:%d T:%d, Br:%d, Bl:%d \r\n", 
-      wheelNum, throttleNum, brakeNum, blinks);
     
-    printf(dataAll);
-
-    //Data for just wheel
-    char dataWheel[1];
-    sprintf(dataWheel, "%d", wheelNum);
 
 
     //I2C Sending
     
-    uint8_t sendData = 0;
-    sendData |= blinkNum;
-    sendData = sendData << 6;
-    sendData |= (throttleNum & 0x3F);
-    //sendData |= blinkNum;
+
     
     // UNIT TESTING
-    if (state == NORMAL) { // normal operation
+    if (testState == NORMAL) { // normal operation
       wiringPiI2CWrite(i2cPort, wheelNum);
       wiringPiI2CWrite(i2cPort, throttleNum);
       wiringPiI2CWrite(i2cPort, brakeNum);
       wiringPiI2CWrite(i2cPort, blinkNum);
-    } else if (state == TEST_BLINKER) { // test blinkers
+    } else if (testState == TEST_BLINKER) { // test blinkers
       switch(test_num) {
         case b0: // test left blinker on, then move past left threshold
           if (cycle == 0) { // set left blinker on
+            printf("Left Blink On\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, L_BLINK);
             cycle++;
           } else if (cycle < TEST_LENGTH) { // left blink on, wheel not past left thold
+            printf("Left Blink On\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // left blink on, wheel past left thold
+            printf("Left Blink On and move Wheel past Threshold\n");
             wiringPiI2CWrite(i2cPort, L_WHEEL_MAX);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -350,12 +339,14 @@ int main() {
           break;
         case b1: // test left blink on and past left threshold, move wheel back past left threshold
           if (cycle < TEST_LENGTH) { // left blink on, wheel past left thold
+            printf("Left Blink On and move Wheel past Threshold\n");
             wiringPiI2CWrite(i2cPort, L_WHEEL_MAX);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // left blink off, wheel return past thold
+            printf("Left Blink On and move Wheel back to normal\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -368,18 +359,21 @@ int main() {
           break;
         case b2: // test right blink on, move past right threshold
           if (cycle == 0) {
+            printf("Right Blink On\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, R_BLINK);
             cycle++;
           } else if (cycle < TEST_LENGTH) { // right blink on, wheel not past right thold
+            printf("Right Blink On\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // right blink on, wheel past thold
+            printf("Right Blink On and wheel past Threshold\n");
             wiringPiI2CWrite(i2cPort, R_WHEEL_MAX);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -392,17 +386,19 @@ int main() {
           break;
         case b3: // test right blink on and past right threshold, then move back past right threshold
           if (cycle < TEST_LENGTH) { // right blink on, wheel past right thold
+          printf("Right Blink On and wheel past Threshold\n");
             wiringPiI2CWrite(i2cPort, R_WHEEL_MAX);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // right blink on, wheel return past thold
+            printf("Right Blink On and move wheel back to normal\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
-            cycle++
+            cycle++;
           } else {
             cycle = 0;
             test_num = test_num + 1;
@@ -410,18 +406,21 @@ int main() {
           break;
         case b4: // test blinker off, turn on left blinker
           if (cycle < TEST_LENGTH) { // left blinker off, right blinker off
+            printf("No Blinkers\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle == TEST_LENGTH) { // send left blink signal
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, L_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // left blink on
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -434,18 +433,21 @@ int main() {
           break;
         case b5: // test left blinker on, turn off left blinker
           if (cycle < TEST_LENGTH) { // left blinker on, right blinker off
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle == TEST_LENGTH) {
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, L_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // left blink off
+            printf("Left Blinker Off\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -458,18 +460,21 @@ int main() {
           break;
         case b6: // test both blinker on, turn on right blinker
           if (cycle < TEST_LENGTH) { // left blinker off, right blinker off
+            printf("No Blinkers\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle == TEST_LENGTH) {
+            printf("No Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, R_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // right blink on
+            printf("Right Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -482,18 +487,21 @@ int main() {
           break;
         case b7: // test right blinker on, turn off right blinker
           if (cycle < TEST_LENGTH) { // right blinker on, left blinker off
+            printf("Right Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle == TEST_LENGTH) {
+            printf("Right Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, R_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // right blink off
+            printf("Right Blinker Off\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -506,24 +514,28 @@ int main() {
           break;
         case b8: // test left blink on, turn on right blink
           if (cycle == 0) {
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, L_BLINK);
             cycle++;
           } else if (cycle < TEST_LENGTH) { // left blinker on, right blinker off
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle == TEST_LENGTH) {
+            printf("Left Blinker\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, R_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // left blink off, right blink on
+            printf("Left Blinker off Right blink on\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -536,24 +548,28 @@ int main() {
           break;
         case b9: // test right blink on, turn on left blink
           if (cycle < TEST_LENGTH) { // right blinker on, left blinker off
+            printf("Left Blinker off Right blink on\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle == TEST_LENGTH) {
+            printf("Left Blinker off Right blink on\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, L_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) { // right blink off, left blink on
+            printf("Left Blinker on Right blink off\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else {
+            printf("Left Blinker on Right blink off\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -563,22 +579,25 @@ int main() {
           }
           break;
         default:
+          printf("Unit Test Done!\n");
           wiringPiI2CWrite(i2cPort, MID_WHEEL);
           wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
           wiringPiI2CWrite(i2cPort, NO_BRAKE);
           wiringPiI2CWrite(i2cPort, NO_BLINK);
           break;
       } 
-    } else if (state == TEST_MOTOR) {
+    } else if (testState == TEST_MOTOR) {
       switch(test_num) {
         case m0: // test no throttle, then throttle depressed to val1
           if (cycle < TEST_LENGTH) {
+            printf("Reseting to baseline\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Setting Trottle to %d\n", THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -591,12 +610,14 @@ int main() {
           break;
         case m1: // test throttle at val1, then throttle depressed to val2
           if (cycle < TEST_LENGTH) {
+            printf("Setting Trottle to %d\n", THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Setting Trottle to %d\n", THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -609,12 +630,14 @@ int main() {
           break;
         case m2: // test throttle at val2, then throttle depressed to val1
           if (cycle < TEST_LENGTH) {
+            printf("Setting Trottle to %d\n", THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Setting Trottle to %d\n", THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -627,12 +650,14 @@ int main() {
           break;
         case m3: // test throttle at val2, then brake depressed
           if (cycle < TEST_LENGTH) {
+            printf("Setting Trottle to %d\n", THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Braking while throttle is active \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, BRAKE);
@@ -645,12 +670,14 @@ int main() {
           break;
         case m4: // test brake on + no throttle, then throttle depressed to val1 (wheels do not turn)
           if (cycle < TEST_LENGTH) {
+            printf("Braking while no throttle\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Braking while throttle is active \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, BRAKE);
@@ -663,12 +690,14 @@ int main() {
           break;
         case m5: // test throttle + brake not pressed, then brake depressed
           if (cycle < TEST_LENGTH) {
+            printf("Nothing pressed\n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("just brake pressed \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
             wiringPiI2CWrite(i2cPort, BRAKE);
@@ -681,12 +710,14 @@ int main() {
           break;
         case m6: // test throttle at val1 + brake on, then brake off (wheels should turn)
           if (cycle < TEST_LENGTH) {
+            printf("Braking while throttle is active \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Braking unpressed throttle is active \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, NO_BRAKE);
@@ -699,12 +730,14 @@ int main() {
           break;
         case m7: // test throttle at val1 + brake on, then throttle at val2 (wheels should not turn)
           if (cycle < TEST_LENGTH) {
+            printf("Braking while throttle is active \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Braking while throttle is raised \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, BRAKE);
@@ -717,12 +750,14 @@ int main() {
           break;
         case m8: // test throttle at val2 + brake on, then throttle at val1 (wheels should not turn)
           if (cycle < TEST_LENGTH) {
+            printf("Braking while throttle is active \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL2);
             wiringPiI2CWrite(i2cPort, BRAKE);
             wiringPiI2CWrite(i2cPort, NO_BLINK);
             cycle++;
           } else if (cycle < 2*TEST_LENGTH) {
+            printf("Braking while throttle is lowered \n");
             wiringPiI2CWrite(i2cPort, MID_WHEEL);
             wiringPiI2CWrite(i2cPort, THROTTLE_VAL1);
             wiringPiI2CWrite(i2cPort, BRAKE);
@@ -734,6 +769,7 @@ int main() {
           }
           break;
         default:
+          printf("Unit Test Done!\n");
           wiringPiI2CWrite(i2cPort, MID_WHEEL);
           wiringPiI2CWrite(i2cPort, MIN_THROTTLE);
           wiringPiI2CWrite(i2cPort, NO_BRAKE);
